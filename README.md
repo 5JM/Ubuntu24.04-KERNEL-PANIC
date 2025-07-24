@@ -1,7 +1,4 @@
-# Ubuntu 24.04 부팅 오류 복구 정리 KERNEL PANIC 복구 과정 기록
-
-
-# ✅ Ubuntu 부팅 오류 복구 정리 (KERNEL PANIC)
+# Ubuntu 24.04 부팅 오류 복구 정리 (KERNEL PANIC)
 
 > 오류 메시지:
 > `KERNEL PANIC! VFS: Unable to mount root fs on unknown-block(0,0)`
@@ -15,55 +12,55 @@
 
 ---
 
-## 🧾 복구 준비물
+## ✅ 복구 준비물
 
-* ✅ **UEFI 부팅 가능한 Ubuntu Live USB**
-* ✅ 인터넷 연결 (가능 시)
-* ✅ 루트 디스크/파티션 정보 확인용 명령어:
-
-  * `lsblk` : 블록 디바이스 구조 확인
-  * `blkid` : 파일시스템 종류 및 UUID 확인
-* ✅ 대상 디스크 파티션 구성 예시:
-
-| 디바이스             | 설명          | 파일시스템 | 역할          |
-| ---------------- | ----------- | ----- | ----------- |
-| `/dev/nvme0n1`   | NVMe 디스크 전체 | -     | 디스크 본체      |
-| `/dev/nvme0n1p1` | 파티션 1       | vfat  | EFI (boot)  |
-| `/dev/nvme0n1p2` | 파티션 2       | ext4  | Ubuntu root |
-
+*  **UEFI 부팅 가능한 Ubuntu Live USB**
 ---
 
-## 🔍 복구 전 파티션 정보 확인
+## Step 0. BIOS 진입 및 Live USB 부팅
+
+① BIOS 진입
+- PC 부팅 직후 아래 키 중 하나를 반복 입력
+  - `Del`, `F2`, `F10`, `F12`, `ESC` 등 제조사에 따라 다름
+
+② Boot Mode 설정 확인
+- `Boot Mode`: **UEFI**
+- `CSM`: 비활성화 (가능하면)
+- `Secure Boot`: 비활성화 권장
+
+③ USB 부팅 우선순위 설정
+- USB 디바이스를 부팅 순서 최상단으로 설정
+- 예: `UEFI: <USB 이름>`
+
+---
+## Step 1. Ubuntu Live USB 부팅 → Try Ubuntu 선택
+
+1. 부팅 후 "Ubuntu 설치" 화면 진입
+2. **Try or Install Ubuntu** → 선택
+   - `Try Ubuntu without installing` 없어도 괜찮음
+3. "Next" 버튼 계속 누르다가 **Try Ubuntu** 선택
+3. Ubuntu GUI 진입 후 Ctrl + Alt + T → 터미널 실행
+
+---
+## Step 2. 디스크 및 파티션 정보 확인
 
 ```bash
 lsblk
-```
-
-→ 파티션 구조, 마운트 여부 확인
-
-```bash
 sudo blkid
 ```
+`lsblk` → 파티션 구조, 마운트 여부 확인
+`sudo blkid` → UUID, 파일시스템 타입, 파티션 유형 확인
 
-→ UUID, 파일시스템 타입, 파티션 유형 확인
-→ `/dev/nvme0n1p1` 은 `TYPE="vfat"` (EFI), `/dev/nvme0n1p2` 는 `TYPE="ext4"` (루트)
+| 디바이스             | 설명      | 파일시스템 | 역할        |
+| ---------------- | ------- | ----- | --------- |
+| `/dev/nvme0n1`   | 전체 디스크  | -     | -         |
+| `/dev/nvme0n1p1` | EFI 파티션 | vfat  | 부트 EFI    |
+| `/dev/nvme0n1p2` | 루트 파티션  | ext4  | Ubuntu 루트 |
 
----
-
-## 🔧 복구 절차 요약
-
-### ① UEFI 부팅 확인
-
-```bash
-[ -d /sys/firmware/efi ] && echo "UEFI mode" || echo "BIOS mode"
-```
-
-→ "UEFI mode" 가 출력되면 정상
 
 ---
 
-### ② chroot 환경 준비
-
+## Step 3. chroot 환경 준비
 ```bash
 sudo mount /dev/nvme0n1p2 /mnt
 sudo mount /dev/nvme0n1p1 /mnt/boot/efi
@@ -75,15 +72,14 @@ sudo chroot /mnt
 
 ---
 
-### ③ NVMe 드라이버 포함 설정
+## Step 4. 복구 과정 
+① NVMe 드라이버 포함 설정
 
 ```bash
 echo nvme >> /etc/initramfs-tools/modules
 ```
 
----
-
-### ④ initramfs 재생성
+② initramfs 재생성
 
 ```bash
 update-initramfs -c -k 6.14.0-24-generic
@@ -92,17 +88,17 @@ update-initramfs -c -k 6.14.0-24-generic
 > `-c`: 새로 생성, `-u`: 기존 업데이트
 > `6.14.0-24-generic`은 현재 설치된 커널 버전
 
----
 
-### ⑤ GRUB 설정 재적용
+
+③ GRUB 설정 재적용
 
 ```bash
 update-grub
 ```
 
----
 
-### ⑥ GRUB 부트로더 재설치 (UEFI 대상)
+
+④ GRUB 부트로더 재설치 (UEFI 대상)
 
 ```bash
 grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=ubuntu
@@ -119,7 +115,7 @@ grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=ubunt
 
 ---
 
-### ⑦ chroot 종료 및 시스템 재부팅
+## Step 5. chroot 종료 및 시스템 재부팅
 
 ```bash
 exit
